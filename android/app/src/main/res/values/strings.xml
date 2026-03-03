@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">utaskapp</string>
+    <string name="title_activity_main">utaskapp</string>
+    <string name="package_name">com.UTaskapp.app</string>
+    <string name="custom_url_scheme">com.UTaskapp.app</string>
+</resources>
