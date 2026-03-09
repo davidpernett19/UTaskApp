@@ -1,326 +1,531 @@
 import { useState, useEffect, useRef } from "react";
+import jsPDF from "jspdf";
+import { Filesystem, Directory, Encoding } from "@capacitor/filesystem";
 
 function App() {
-  const [subjects, setSubjects] = useState([]);
-  const [newSubject, setNewSubject] = useState("");
-  const [selectedSubject, setSelectedSubject] = useState(null);
-  const [seconds, setSeconds] = useState(0);
-  const [isRunning, setIsRunning] = useState(false);
-  const intervalRef = useRef(null);
 
-  // Cargar datos
-  useEffect(() => {
-    const stored = localStorage.getItem("studyData");
-    if (stored) setSubjects(JSON.parse(stored));
-  }, []);
+const [activities,setActivities]=useState([]);
+const [history,setHistory]=useState([]);
+const [newActivity,setNewActivity]=useState("");
+const [selectedActivity,setSelectedActivity]=useState(null);
+const [seconds,setSeconds]=useState(0);
+const [comment,setComment]=useState("");
+const [isRunning,setIsRunning]=useState(false);
 
-  // Guardar datos
-  useEffect(() => {
-    localStorage.setItem("studyData", JSON.stringify(subjects));
-  }, [subjects]);
+const intervalRef=useRef(null);
 
-  // Cronómetro
-  useEffect(() => {
-    if (isRunning) {
-      intervalRef.current = setInterval(() => {
-        setSeconds((prev) => prev + 1);
-      }, 1000);
-    } else {
-      clearInterval(intervalRef.current);
-    }
+const defaultActivities=[
+"Comité Interno",
+"Daily",
+"Triage",
+"Soporte consultoría",
+"Soporte Chat"
+];
 
-    return () => clearInterval(intervalRef.current);
-  }, [isRunning]);
+useEffect(()=>{
 
-  const addSubject = () => {
-    if (!newSubject.trim()) return;
+const stored=localStorage.getItem("workApp");
 
-    const subject = {
-      id: Date.now(),
-      name: newSubject,
-      sessions: [],
-    };
+if(stored){
+const data=JSON.parse(stored);
+setActivities(data.activities||[]);
+setHistory(data.history||[]);
+}
 
-    setSubjects([...subjects, subject]);
-    setNewSubject("");
-  };
+},[]);
 
-  const startSession = (subject) => {
-    setSelectedSubject(subject);
-    setSeconds(0);
-    setIsRunning(true);
-  };
+useEffect(()=>{
 
-  const stopSession = () => {
-    setIsRunning(false);
-    if (seconds === 0) return;
+localStorage.setItem(
+"workApp",
+JSON.stringify({activities,history})
+);
 
-    const updated = subjects.map((sub) =>
-      sub.id === selectedSubject.id
-        ? {
-            ...sub,
-            sessions: [
-              ...sub.sessions,
-              {
-                duration: seconds,
-                date: new Date().toLocaleString(),
-              },
-            ],
-          }
-        : sub
-    );
+},[activities,history]);
 
-    setSubjects(updated);
-    setSelectedSubject(null);
-    setSeconds(0);
-  };
+useEffect(()=>{
 
-  const formatTime = (totalSeconds) => {
-    const h = Math.floor(totalSeconds / 3600);
-    const m = Math.floor((totalSeconds % 3600) / 60);
-    const s = totalSeconds % 60;
-    return `${h.toString().padStart(2, "0")}:${m
-      .toString()
-      .padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
-  };
+if(isRunning){
 
-  const getTotalTime = (sessions) =>
-    sessions.reduce((acc, s) => acc + s.duration, 0);
+intervalRef.current=setInterval(()=>{
+setSeconds(prev=>prev+1);
+},1000);
 
-  return (
-    <>
-      <style>{`
-        body {
-          margin: 0;
-          font-family: 'Inter', 'Segoe UI', sans-serif;
-          background: linear-gradient(180deg, #630b0b 0%, #ff0000 100%);
-        }
+}else{
 
-          .card h3 {
-           color: #810000;
-          }
+clearInterval(intervalRef.current);
 
-        .container {
-          max-width: 480px;
-          margin: 0 auto;
-          padding: 40px 20px 60px;
-          min-height: 100vh;
-        }
+}
 
-        .header {
-          margin-bottom: 30px;
-        }
+return()=>clearInterval(intervalRef.current);
 
-        .header h1 {
-          color: white;
-          font-size: 2.4rem;
-          margin: 0;
-          font-weight: 700;
-        }
+},[isRunning]);
 
-        .header p {
-          color: rgb(255, 255, 255);
-          margin-top: 6px;
-          font-size: 0.95rem;
-        }
+const addActivity=(name)=>{
 
-        .card {
-          background: white;
-          padding: 22px;
-          border-radius: 18px;
-          box-shadow: 0 15px 35px rgba(247, 0, 0, 0.15);
-          margin-bottom: 18px;
-          transition: transform 0.2s ease;
-        }
+if(!name)return;
 
-        .card:hover {
-          transform: translateY(-2px);
-        }
+const exists=activities.find(a=>a.name===name);
 
-        .input-group {
-          display: flex;
-          gap: 10px;
-          flex-wrap: wrap;
-        }
+if(exists)return;
 
-        input {
-          flex: 1;
-          padding: 12px 14px;
-          border-radius: 12px;
-          border: 1px solid #770000;
-          font-size: 0.95rem;
-          outline: none;
-          transition: border 0.2s ease;
-        }
+const newItem={
+id:Date.now(),
+name,
+records:[]
+};
 
-        input:focus {
-          border-color: #eb2525;
-        }
+setActivities([...activities,newItem]);
 
-        button {
-          padding: 12px 18px;
-          border-radius: 12px;
-          border: none;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s ease;
-        }
+};
 
-        .primary {
-          background: #680000;
-          color: white;
-        }
+const startSession=(activity)=>{
 
-        .primary:hover {
-          background: #700000;
-        }
+setSelectedActivity(activity);
+setSeconds(0);
+setComment("");
+setIsRunning(true);
 
-        .danger {
-          background: #960303;
-          color: white;
-        }
+};
 
-        .danger:hover {
-          background: #dc2626;
-        }
+const finishSession=()=>{
 
-        .subject-card {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 15px;
-          flex-wrap: wrap;
-        }
+setIsRunning(false);
 
-        .subject-info h3 {
-          margin: 0;
-          font-size: 1.1rem;
-        }
+const updated=activities.map(a=>
+a.id===selectedActivity.id
+?{
+...a,
+records:[
+...a.records,
+{
+duration:seconds,
+comment,
+date:new Date().toLocaleString()
+}
+]
+}
+:a
+);
 
-        .subject-info p {
-          margin: 4px 0 0;
-          font-size: 0.85rem;
-          color: #6b7280;
-        }
+setActivities(updated);
+setSelectedActivity(null);
+setSeconds(0);
+setComment("");
 
-        .timer-display {
-          font-size: 3.2rem;
-          font-weight: 700;
-          text-align: center;
-          margin: 25px 0;
-          color: #8a1e1e;
-        }
+};
 
-        .button-group {
-          display: flex;
-          gap: 12px;
-          justify-content: center;
-          flex-wrap: wrap;
-        }
+const saveDay=()=>{
 
-        @media (max-width: 480px) {
-          .container {
-            padding: 30px 15px 50px;
-          }
+if(activities.length===0)return;
 
-          .timer-display {
-            font-size: 2.4rem;
-          }
+const newDay={
+date:new Date().toLocaleDateString(),
+activities
+};
 
-          .subject-card {
-            flex-direction: column;
-            align-items: stretch;
-          }
+setHistory([...history,newDay]);
+setActivities([]);
 
-          button {
-            width: 100%;
-          }
-        }
-      `}</style>
+};
 
-      <div className="container">
-        <div className="header">
-          <h1>StudyTrack</h1>
-          <p>Controla tu tiempo de estudio por materia</p>
-        </div>
+const formatTime=(total)=>{
 
-        {!selectedSubject && (
-          <>
-            <div className="card">
-              <h3>Agregar Materia</h3>
-              
+const h=Math.floor(total/3600);
+const m=Math.floor((total%3600)/60);
+const s=total%60;
 
-              <div className="input-group">
-                <input
-                  value={newSubject}
-                  onChange={(e) => setNewSubject(e.target.value)}
-                  placeholder="Nombre de la materia"
-                />
-                <button className="primary" onClick={addSubject}>
-                  Agregar
-                </button>
-              </div>
-            </div>
+return `${h.toString().padStart(2,"0")}:${m.toString().padStart(2,"0")}:${s.toString().padStart(2,"0")}`;
 
-            {subjects.map((sub) => (
-              <div className="card subject-card" key={sub.id}>
-                <div className="subject-info">
-                  <h3>{sub.name}</h3>
-                  <p>
-                    Total estudiado: {formatTime(
-                      getTotalTime(sub.sessions)
-                    )}
-                  </p>
-                </div>
-                <button
-                  className="primary"
-                  onClick={() => startSession(sub)}
-                >
-                  Iniciar sesión
-                </button>
-              </div>
-            ))}
-          </>
-        )}
+};
 
-        {selectedSubject && (
-          <div className="card">
-            <h2 style={{ textAlign: "center" }}>
-              {selectedSubject.name}
-            </h2>
+const totalActivityTime=(records)=>records.reduce((acc,r)=>acc+r.duration,0);
 
-            <div className="timer-display">
-              {formatTime(seconds)}
-            </div>
+const totalDayTime=(day)=>{
 
-            <div className="button-group">
-              {!isRunning && (
-                <button
-                  className="primary"
-                  onClick={() => setIsRunning(true)}
-                >
-                  Continuar
-                </button>
-              )}
+let total=0;
 
-              {isRunning && (
-                <button
-                  className="primary"
-                  onClick={() => setIsRunning(false)}
-                >
-                  Pausar
-                </button>
-              )}
+day.activities.forEach(a=>{
+a.records.forEach(r=>{
+total+=r.duration;
+});
+});
 
-              <button className="danger" onClick={stopSession}>
-                Finalizar sesión
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </>
-  );
+return total;
+
+};
+
+const todayTotal=()=>{
+
+let total=0;
+
+activities.forEach(a=>{
+a.records.forEach(r=>{
+total+=r.duration;
+});
+});
+
+return total;
+
+};
+
+const exportCSV=async()=>{
+
+let csv="Fecha,Actividad,Tiempo,Comentario\n";
+
+history.forEach(day=>{
+day.activities.forEach(a=>{
+a.records.forEach(r=>{
+csv+=`${day.date},${a.name},${formatTime(r.duration)},${r.comment}\n`;
+});
+});
+});
+
+await Filesystem.writeFile({
+path:`registro_${Date.now()}.csv`,
+data:csv,
+directory:Directory.Documents,
+encoding:Encoding.UTF8
+});
+
+alert("CSV guardado en Documentos");
+
+};
+
+const exportPDF=async()=>{
+
+const doc=new jsPDF();
+
+let y=10;
+
+doc.text("Registro de Actividades",10,y);
+
+y+=10;
+
+history.forEach(day=>{
+
+doc.text(`Fecha: ${day.date}`,10,y);
+
+y+=6;
+
+day.activities.forEach(a=>{
+a.records.forEach(r=>{
+doc.text(`${a.name} - ${formatTime(r.duration)} - ${r.comment}`,10,y);
+y+=6;
+});
+});
+
+y+=4;
+
+});
+
+const pdf=doc.output("datauristring");
+
+await Filesystem.writeFile({
+path:`registro_${Date.now()}.pdf`,
+data:pdf.split(",")[1],
+directory:Directory.Documents
+});
+
+alert("PDF guardado en Documentos");
+
+};
+
+return(
+
+<>
+
+<style>{`
+
+body{
+margin:0;
+font-family:Segoe UI;
+background:linear-gradient(180deg,#1e40af,#3b82f6);
+}
+
+.container{
+max-width:500px;
+margin:auto;
+padding:80px 20px 40px;
+}
+
+.header{
+color:white;
+margin-bottom:25px;
+}
+
+.header h1{
+margin:0;
+font-size:28px;
+}
+
+.card{
+background:white;
+padding:20px;
+border-radius:16px;
+margin-bottom:18px;
+box-shadow:0 10px 25px rgba(0,0,0,.1);
+}
+
+.quick-buttons{
+display:flex;
+flex-wrap:wrap;
+gap:8px;
+margin-top:10px;
+}
+
+.quick-buttons button{
+background:#6ee7b7;
+border:none;
+padding:8px 12px;
+border-radius:8px;
+cursor:pointer;
+}
+
+input,textarea{
+width:100%;
+padding:10px;
+border-radius:10px;
+border:1px solid #ddd;
+margin-top:10px;
+}
+
+button.primary{
+background:#1e40af;
+color:white;
+border:none;
+padding:10px 15px;
+border-radius:10px;
+margin-top:10px;
+cursor:pointer;
+}
+
+button.orange{
+background:#f97316;
+color:white;
+border:none;
+padding:10px 15px;
+border-radius:10px;
+cursor:pointer;
+margin-top:10px;
+}
+
+.activity{
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin-top:10px;
+}
+
+.timer{
+font-size:40px;
+text-align:center;
+margin:20px 0;
+color:#1e40af;
+}
+
+.history-day{
+margin-top:15px;
+border-top:1px solid #eee;
+padding-top:10px;
+}
+
+.dashboard{
+background:#ecfeff;
+padding:12px;
+border-radius:10px;
+margin-bottom:15px;
+}
+
+`}</style>
+
+<div className="container">
+
+<div className="header">
+<h1>Work Tracker</h1>
+<p>Registro simple de actividades laborales</p>
+</div>
+
+<div className="card dashboard">
+<strong>Tiempo trabajado hoy</strong>
+<div>{formatTime(todayTotal())}</div>
+</div>
+
+{!selectedActivity &&(
+
+<>
+
+<div className="card">
+
+<h3>Actividades rápidas</h3>
+
+<div className="quick-buttons">
+
+{defaultActivities.map(a=>(
+
+<button key={a} onClick={()=>addActivity(a)}>
+{a}
+</button>
+
+))}
+
+</div>
+
+<input
+placeholder="Agregar actividad manual"
+value={newActivity}
+onChange={(e)=>setNewActivity(e.target.value)}
+/>
+
+<button
+className="primary"
+onClick={()=>{
+addActivity(newActivity);
+setNewActivity("");
+}}
+>
+
+Agregar
+
+</button>
+
+</div>
+
+<div className="card">
+
+<h3>Actividades actuales</h3>
+
+{activities.map(a=>(
+
+<div className="activity" key={a.id}>
+
+<div>
+<strong>{a.name}</strong>
+<div>
+Tiempo total: {formatTime(totalActivityTime(a.records))}
+</div>
+</div>
+
+<button
+className="primary"
+onClick={()=>startSession(a)}
+>
+
+Iniciar
+
+</button>
+
+</div>
+
+))}
+
+</div>
+
+<div className="card">
+
+<button className="orange" onClick={saveDay}>
+Guardar jornada
+</button>
+
+</div>
+
+<div className="card">
+
+<h3>Historial</h3>
+
+<button className="primary" onClick={exportCSV}>
+Exportar CSV
+</button>
+
+<button className="orange" onClick={exportPDF}>
+Exportar PDF
+</button>
+
+{history.map((day,i)=>(
+
+<div className="history-day" key={i}>
+
+<strong>{day.date}</strong>
+
+<div>Total: {formatTime(totalDayTime(day))}</div>
+
+{day.activities.map(a=>
+a.records.map((r,idx)=>(
+
+<div key={idx}>
+
+{a.name} — {formatTime(r.duration)}
+
+<br/>
+
+<small>{r.comment}</small>
+
+</div>
+
+))
+)}
+
+</div>
+
+))}
+
+</div>
+
+</>
+
+)}
+
+{selectedActivity&&(
+
+<div className="card">
+
+<h3>{selectedActivity.name}</h3>
+
+<div className="timer">
+{formatTime(seconds)}
+</div>
+
+{isRunning?(
+<button
+className="primary"
+onClick={()=>setIsRunning(false)}
+>
+Pausar
+</button>
+):(
+<button
+className="primary"
+onClick={()=>setIsRunning(true)}
+>
+Continuar
+</button>
+)}
+
+<textarea
+placeholder="Comentario sobre esta actividad"
+value={comment}
+onChange={(e)=>setComment(e.target.value)}
+/>
+
+<button
+className="orange"
+onClick={finishSession}
+>
+
+Finalizar sesión
+
+</button>
+
+</div>
+
+)}
+
+</div>
+
+</>
+
+);
+
 }
 
 export default App;
